@@ -1,0 +1,8 @@
+confluence:
+  base_url: https://flowscape2.atlassian.net
+  spaces:
+    - F2
+    - Support
+    - SKB
+    - IN
+    - PS
