@@ -36,16 +36,19 @@ def main():
     email = os.environ["CONFLUENCE_EMAIL"]
     token = os.environ["CONFLUENCE_API_TOKEN"]
 
-    spaces = ["F2", "Support", "SKB", "IN", "PS"]
+    spaces = ["F2", "Support", "IN", "SPR"]
 
     SPACE_FOLDER_NAMES = {
         "F2": "Flowscape 2.0",
         "IN": "Installation",
-        "PS": "Product Specifications",
-        "SKB": "Support Knowledge Base",
         "Support": "Support",
+        "SPR": "Software Products Releases",
     }
 
+    EXCLUDED_PAGE_TITLES = {
+        "Archived Products Home"
+    }
+    
     output_root = Path("output") / "dry_run"
 
     #Wipe local export output so we don't accidentally upload old folders
@@ -69,7 +72,14 @@ def main():
         ensure_dir(space_dir)
 
         pages = fetch_all_pages(client, space_key)
-
+        # Identify "folder pages" (pages that have children)
+        has_children = set()
+        for p in pages:
+            ancestors = p.get("ancestors") or []
+            parent_id = ancestors[-1]["id"] if ancestors else None
+            if parent_id:
+                has_children.add(parent_id)
+        
         manifest["spaces"][space_key] = {"pages": {}, "attachments": {}}
 
         for page in pages:
@@ -90,15 +100,18 @@ def main():
             page_folder = parent_folder / page_title
             ensure_dir(page_folder)
 
-            html = fetch_page_html(client, page_id)
-            html_file = parent_folder / f"{page_title}.html"
-            html_file.write_text(html, encoding="utf-8")
+            html_file = None
+            # Only export HTML for leaf pages (pages without children)
+            if page_id not in has_children:
+                html = fetch_page_html(client, page_id)
+                html_file = parent_folder / f"{page_title}.html"
+                html_file.write_text(html, encoding="utf-8")
 
             manifest["spaces"][space_key]["pages"][page_id] = {
                 "title": page.get("title"),
                 "version": page.get("version", {}).get("number"),
                 "parentId": ancestors[-1]["id"] if ancestors else None,
-                "localPath": str(html_file),
+                "localPath": str(html_file) if html_file else None,
                 "folderPath": str(page_folder),
             }
 
