@@ -164,6 +164,21 @@ def upload_file(graph: GraphClient, drive_id: str, remote_path: str, local_file_
 
     return "updated" if existed else "created"
 
+
+def delete_file(graph: GraphClient, drive_id: str, remote_path: str) -> bool:
+    """
+    Deletes a file by path from the drive.
+    Returns True if deleted, False if it was already absent.
+    """
+    remote_path = remote_path.strip("/")
+    enc = quote(remote_path, safe="/")
+    url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{enc}"
+    r = graph.request("DELETE", url)
+    if r.status_code == 404:
+        return False
+    r.raise_for_status()
+    return True
+
 def list_drives(graph: GraphClient, site_id: str):
     url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives"
     r = graph.request("GET", url)
