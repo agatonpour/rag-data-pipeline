@@ -68,7 +68,7 @@ def main():
         shutil.rmtree(output_root)
     ensure_dir(output_root)
 
-    state_dir = Path("state")
+    state_dir = Path(os.getenv("STATE_DIR", "/tmp/state"))
     ensure_dir(state_dir)
     manifest_path = state_dir / "manifest.json"
     previous_state = load_state_from_blob()
