@@ -61,7 +61,7 @@ def main():
         "Archived Products Home"
     }
 
-    output_root = Path("output") / "dry_run"
+    output_root = Path(os.getenv("OUTPUT_DIR", "/tmp/output")) / "dry_run"
 
     # Wipe local export output so we don't accidentally upload old folders
     if output_root.exists():
