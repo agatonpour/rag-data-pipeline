@@ -4,6 +4,8 @@ import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 
+from blob_state import load_state_from_blob, save_state_to_blob
+
 from confluence.client import ConfluenceClient
 from confluence.pages import fetch_all_pages, fetch_page_html
 from confluence.attachments import (
@@ -27,21 +29,6 @@ def sanitize_name(name: str) -> str:
 
 def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
-
-
-def load_state(state_path: Path) -> dict:
-    if not state_path.exists():
-        return {"pages": {}, "attachments": {}, "pendingDeletes": []}
-
-    try:
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"pages": {}, "attachments": {}, "pendingDeletes": []}
-
-    state.setdefault("pages", {})
-    state.setdefault("attachments", {})
-    state.setdefault("pendingDeletes", [])
-    return state
 
 
 def has_file_changed(previous_entry: dict | None, version, relative_path: str) -> bool:
@@ -73,10 +60,10 @@ def main():
     EXCLUDED_PAGE_TITLES = {
         "Archived Products Home"
     }
-    
+
     output_root = Path("output") / "dry_run"
 
-    #Wipe local export output so we don't accidentally upload old folders
+    # Wipe local export output so we don't accidentally upload old folders
     if output_root.exists():
         shutil.rmtree(output_root)
     ensure_dir(output_root)
@@ -84,8 +71,7 @@ def main():
     state_dir = Path("state")
     ensure_dir(state_dir)
     manifest_path = state_dir / "manifest.json"
-    sync_state_path = state_dir / "sync_state.json"
-    previous_state = load_state(sync_state_path)
+    previous_state = load_state_from_blob()
 
     client = ConfluenceClient(base_url=base_url, email=email, api_token=token)
 
@@ -104,6 +90,7 @@ def main():
         ensure_dir(space_dir)
 
         pages = fetch_all_pages(client, space_key)
+
         # Identify "folder pages" (pages that have children)
         has_children = set()
         for p in pages:
@@ -111,7 +98,7 @@ def main():
             parent_id = ancestors[-1]["id"] if ancestors else None
             if parent_id:
                 has_children.add(parent_id)
-        
+
         manifest["spaces"][space_key] = {"pages": {}, "attachments": {}}
 
         for page in pages:
@@ -141,6 +128,7 @@ def main():
             ensure_dir(page_folder)
 
             html_file = None
+
             # Only export HTML for leaf pages (pages without children)
             if page_id not in has_children:
                 html_file = parent_folder / f"{page_title}.html"
@@ -152,7 +140,11 @@ def main():
                     "relativePath": relative_html_path,
                 }
 
-                if has_file_changed(previous_state.get("pages", {}).get(page_id), page_version, relative_html_path):
+                if has_file_changed(
+                    previous_state.get("pages", {}).get(page_id),
+                    page_version,
+                    relative_html_path,
+                ):
                     html = fetch_page_html(client, page_id)
                     html_file.write_text(html, encoding="utf-8")
                     token = f"pages:{page_id}"
@@ -302,8 +294,8 @@ def main():
     deleted_paths = set(delete_summary.pop("successful_paths"))
     next_state["pendingDeletes"] = sorted(stale_paths - deleted_paths)
 
-    sync_state_path.write_text(json.dumps(next_state, indent=2), encoding="utf-8")
-    print(f"Sync state written to {sync_state_path}")
+    save_state_to_blob(next_state)
+    print("Sync state written to Azure Blob Storage")
 
     print("\n--- SharePoint Sync Summary ---")
     print(f"Target: {host}{site_path} / {drive_name} / {sp_root}")
