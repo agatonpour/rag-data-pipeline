@@ -26,7 +26,6 @@ def sanitize_name(name: str) -> str:
     name = " ".join(name.split())
     return name.strip()
 
-
 def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
