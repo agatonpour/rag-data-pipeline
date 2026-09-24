@@ -1,3 +1,14 @@
 .env
 output/
 state/
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# IDE / editor
+.vscode/
+.idea/
+config.yaml
